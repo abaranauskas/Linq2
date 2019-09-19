@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Entity;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,163 +14,62 @@ namespace Cars
     {
         static void Main(string[] args)
         {
-            var cars = ProcessCars("fuel.csv");
-            var manufacturers = ProcessManufacturers("manufacturers.csv");
+            //
+            //Func<int, int> square = x => x * x;
+            //Expression<Func<int, int, int>> add = (y, x) => y + x;
+            ////Expresion tai duomenu strutura EF pagal tai pavercia i SQL
 
+            //Func<int, int, int> addI = add.Compile();
 
-            #region 5th Module
-            var query = cars.Where(c => c.Manufacturer == "BMW").OrderByDescending(c => c.Combined).ThenBy(c => c.Name)
-                .Select(c => new
+            //var result = addI(2, 3);
+            //Console.WriteLine(result);
+            //Console.WriteLine(add);
+            //
+
+            Database.SetInitializer(new DropCreateDatabaseIfModelChanges<CarDb>());
+            InsertData();
+            QueryData();
+        }
+
+        private static void QueryData()
+        {
+            var context = new CarDb();
+            context.Database.Log = Console.WriteLine;
+
+            var query = context.Cars.Where(c => c.Manufacturer == "BMW")
+                                    .OrderByDescending(c => c.Combined)
+                                    .ThenBy(c => c.Name)
+                                    .Select(c => new { c.Name, c.Combined })
+                                    .Take(10);
+
+            query.ToList().ForEach(c => Console.WriteLine($"{c.Name}:{c.Combined}"));
+
+            var query2 = context.Cars.GroupBy(c => c.Manufacturer)
+                .Select(g => new
                 {
-                    c.Manufacturer,
-                    c.Name,
-                    c.Combined
+                    Name = g.Key,
+                    Cars = g.OrderByDescending(c => c.Combined).Take(2)
                 });
-            var query2 = cars.Where(c => c.Manufacturer == "BMW")
-                             .OrderByDescending(c => c.Combined)
-                             .ThenBy(c => c.Name)
-                             .FirstOrDefault();
 
-            var result = cars.Any(c => c.Manufacturer == "Ford");
-            var result2 = cars.All(c => c.Manufacturer == "Ford");
-
-            //Console.WriteLine(result2);
-
-            //cars.SelectMany(c => c.Name).OrderBy(c => c).ToList().ForEach(c => Console.WriteLine(c));
-
-            //Console.WriteLine(character);
-
-            //foreach (var car in query.Take(10))
-            //{
-            //    Console.WriteLine($"{car.Name} : {car.Combined} : {car.}");
-            //}
-
-            #endregion
-
-            var query3 = cars.Join(manufacturers,
-                c => c.Manufacturer,
-                m => m.Name,
-                (c, m) => new
-                {
-                    m.Headquarters,
-                    c.Name,
-                    c.Combined
-                })
-                .OrderByDescending(c => c.Combined)
-                .ThenBy(c => c.Name)
-                .ToList();
-
-            var query4 = cars.Join(manufacturers,
-                c => c.Manufacturer,
-                m => m.Name,
-                (c, m) => new
-                {
-                    m.Headquarters,
-                    c.Name,
-                    c.Combined
-                })
-                .OrderByDescending(c => c.Combined)
-                .ThenBy(c => c.Name)
-                .ToList();
-
-            var query5 = cars.Join(manufacturers,
-                    c => new { c.Manufacturer, c.Year },
-                    m => new { Manufacturer = m.Name, m.Year },
-                    (c, m) => new
-                    {
-                        m.Headquarters,
-                        c.Name,
-                        c.Combined
-                    })
-                .OrderByDescending(c => c.Combined)
-                .ThenBy(c => c.Name)
-                .ToList();
-
-            foreach (var car in query5.Take(10))
-            {
-                //Console.WriteLine($"{car.Name} {car.Headquarters} {car.Combined}");
-            }
-
-            var query6 = cars.GroupBy(c => c.Manufacturer.ToUpper())
-                             .OrderBy(g => g.Key);
-
-            //foreach (var group in query6)
-            //{
-            //    Console.WriteLine(group.Key);
-            //    foreach (var car in group.OrderByDescending(c => c.Combined).Take(2))
-            //    {
-            //        Console.WriteLine($"\t{car.Name}: {car.Combined} MPG");
-            //    }
-            //}
-
-            var query7 = manufacturers.GroupJoin(cars,
-                                            m => m.Name,
-                                            c => c.Manufacturer,
-                                            (m, g) => new
-                                            {
-                                                Manufacturer = m,
-                                                Cars = g
-                                            }).OrderBy(g => g.Manufacturer.Name);
-
-            foreach (var group in query7)
-            {
-                //Console.WriteLine($"{group.Manufacturer.Name}: {group.Manufacturer.Headquarters}");
-                //foreach (var car in group.Cars.OrderByDescending(c => c.Combined).Take(2))
-                //{
-                //    Console.WriteLine($"\t{car.Name}: {car.Combined} MPG");
-                //}
-            }
-
-            var query8 = manufacturers.GroupJoin(cars,
-                m => m.Name,
-                c => c.Manufacturer,
-                (m, g) => new
-                {
-                    Manufacturer = m,
-                    Cars = g
-                }).GroupBy(x => x.Manufacturer.Headquarters)
-                .OrderBy(x => x.Key);
-
-            foreach (var group in query8)
-            {
-                //Console.WriteLine(group.Key);
-                //foreach (var car in group.SelectMany(x=>x.Cars).OrderByDescending(x => x.Combined).Take(3))
-                //{
-                //    Console.WriteLine($"\t{car.Name}:{car.Combined}");
-                //}
-            }
-
-
-            var query9 = cars.GroupBy(c => c.Manufacturer.ToUpper())
-                .Select(x => new
-                {
-                    Name = x.Key,
-                    Max = x.Max(c => c.Combined),
-                    Min = x.Min(c => c.Combined),
-                    Avg = x.Average(c => c.Combined)
-                }).OrderByDescending(c => c.Max);
-
-            var query10 = cars.GroupBy(c => c.Manufacturer.ToUpper())
-                .Select(x =>
-                {
-                    var results = x.Aggregate(new CarStatistics(),
-                                                (acc, c) => acc.Accmulate(c),
-                                                acc => acc.Compute());
-                    return new
-                    {
-                        Name = x.Key,
-                        Max = results.Max,
-                        Min = results.Min,
-                        Avg = results.Average
-                    };
-                }).OrderByDescending(c => c.Max);
-
-            foreach (var group in query10)
+            foreach (var group in query2)
             {
                 Console.WriteLine(group.Name);
-                Console.WriteLine($"\tMax: {group.Max}");
-                Console.WriteLine($"\tMin: {group.Min}");
-                Console.WriteLine($"\tAvg: {group.Avg}");
+                foreach (var car in group.Cars)
+                {
+                    Console.WriteLine($"\t{car.Name}:{car.Combined}");
+                }
+            }
+        }
+
+        private static void InsertData()
+        {
+            var cars = ProcessCars("fuel.csv");
+            var context = new CarDb();
+            //context.Database.Log = Console.WriteLine;
+            if (!context.Cars.Any())
+            {
+                context.Cars.AddRange(cars);
+                context.SaveChanges();
             }
         }
 
